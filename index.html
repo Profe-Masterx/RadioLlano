@@ -78,6 +78,34 @@
             padding: 22px;
             text-align: center;
         }
+        
+        /* Contenedor e Input de IP */
+        .ip-container {
+            margin-bottom: 18px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .ip-input {
+            padding: 12px 18px;
+            border: 2px solid #ced4da;
+            border-radius: 25px;
+            font-size: 1rem;
+            text-align: center;
+            outline: none;
+            width: min(280px, 100%);
+            transition: border-color 0.2s;
+        }
+        .ip-input:focus {
+            border-color: #0d6efd;
+        }
+        .ip-input.error {
+            border-color: #dc3545;
+            background-color: #fdf2f2;
+        }
+
         .boton {
             border: 0;
             border-radius: 50px;
@@ -137,9 +165,14 @@
             </div>
 
             <div class="reproductor">
+                <!-- Campo para la IP servidora -->
+                <div class="ip-container">
+                    <input type="text" id="ipServidor" class="ip-input" placeholder="Ej: 192.168.1.16" value="192.168.1.16">
+                </div>
+
                 <button class="boton" id="btnReproducir">▶ ESCUCHAR RADIO</button>
                 <audio id="radioAudio" controls preload="auto">
-                    <source id="fuenteAudio" src="http://10.0.1.196:8181/radio" type="audio/mpeg">
+                    <source id="fuenteAudio" src="http://192.168.1.16:8181/radio" type="audio/mpeg">
                     Tu navegador no soporta reproducción de audio.
                 </audio>
                 <div class="estado" id="estado">Presioná "Escuchar Radio" para comenzar.</div>
@@ -153,24 +186,58 @@
 
     <script>
         const audio = document.getElementById("radioAudio");
+        const fuenteAudio = document.getElementById("fuenteAudio");
         const boton = document.getElementById("btnReproducir");
         const estado = document.getElementById("estado");
+        const ipInput = document.getElementById("ipServidor");
+
+        let ipActual = "";
+
+        // Función para validar sintaxis de dirección IPv4
+        function esIPv4Valida(ip) {
+            const regexIPv4 = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+            return regexIPv4.test(ip.trim());
+        }
 
         boton.addEventListener("click", function () {
+            const ipIngresada = ipInput.value.trim();
+
+            // Validar IP ingresada por el usuario
+            if (!esIPv4Valida(ipIngresada)) {
+                ipInput.classList.add("error");
+                estado.textContent = "⚠ Por favor, ingresá una dirección IPv4 válida (ej. 192.168.1.16).";
+                return;
+            }
+
+            ipInput.classList.remove("error");
+
             if (audio.paused) {
+                // Si la IP cambió desde el último intento, se actualiza el atributo src y se recarga
+                if (ipActual !== ipIngresada) {
+                    ipActual = ipIngresada;
+                    const nuevaUrl = `http://${ipActual}:8181/radio`;
+                    fuenteAudio.src = nuevaUrl;
+                    audio.load();
+                }
+
                 audio.play()
                     .then(() => {
                         boton.textContent = "⏸ PAUSAR RADIO";
                         estado.textContent = "🔴 Reproduciendo transmisión en vivo";
                     })
                     .catch(() => {
-                        estado.textContent = "No fue posible iniciar la reproducción. Verificá la conexión con la radio.";
+                        estado.textContent = "No fue posible iniciar la reproducción. Verificá la IP o la conexión con VLC.";
                     });
             } else {
                 audio.pause();
                 boton.textContent = "▶ ESCUCHAR RADIO";
                 estado.textContent = "Transmisión pausada.";
             }
+        });
+
+        // Limpia el borde rojo si el usuario modifica el texto de la IP
+        ipInput.addEventListener("input", function() {
+            ipInput.classList.remove("error");
         });
 
         audio.addEventListener("playing", function () {
@@ -182,7 +249,7 @@
         });
 
         audio.addEventListener("error", function () {
-            estado.textContent = "⚠ No se puede acceder a la transmisión. Verificá que VLC esté transmitiendo.";
+            estado.textContent = "⚠ No se puede acceder a la transmisión. Verificá que VLC esté transmitiendo en la IP ingresada.";
         });
     </script>
 </body>
