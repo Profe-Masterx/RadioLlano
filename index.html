@@ -166,14 +166,33 @@
             font-size: 0.95rem;
             color: #596579;
         }
+        .temporizador {
+            margin-top: 6px;
+            font-size: 0.95rem;
+            color: #dc3545;
+            font-weight: bold;
+            background: transparent;
+        }
+
+        /* ESTILOS DEL PIE DE PÁGINA */
         .pie {
             padding: 16px 25px;
             background: #f1f3f5;
-            text-align: center;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             color: #667085;
             font-size: 0.9rem;
         }
         .online { color: #198754; font-weight: bold; }
+
+        /* ESTILO PARA LA VERSIÓN DEL PROYECTO */
+        .version-proyecto {
+            color: #dc3545;        /* Texto en color rojo */
+            font-style: italic;     /* Letra cursiva */
+            font-size: 0.8rem;      /* Tamaño chico */
+            background: transparent;/* Sin fondo */
+        }
 
         /* Ajustes adaptativos para dispositivos móviles */
         @media (max-width: 650px) {
@@ -190,6 +209,10 @@
                 justify-content: center;
             }
             .contenido { padding: 20px; }
+            .pie {
+                flex-direction: column;
+                gap: 8px;
+            }
         }
     </style>
 </head>
@@ -234,11 +257,16 @@
                 </audio>
 
                 <div class="estado" id="estado">Presioná "Escuchar Radio" para comenzar.</div>
+                <div class="temporizador" id="temporizador"></div>
             </div>
         </section>
 
         <footer class="pie">
-            📡 Radio transmitida dentro de la red LAN escolar · <span class="online">Sistema activo</span>
+            <div>
+                📡 Radio transmitida dentro de la red LAN escolar · <span class="online">Sistema activo</span>
+            </div>
+
+            <div class="version-proyecto">Ver. 1.0</div>
         </footer>
     </main>
 
@@ -276,9 +304,12 @@
         const fuenteAudio = document.getElementById("fuenteAudio");
         const boton = document.getElementById("btnReproducir");
         const estado = document.getElementById("estado");
+        const temporizador = document.getElementById("temporizador");
         const ipInput = document.getElementById("ipServidor");
 
         let ipActual = "";
+        let timerConexion = null;
+        let tiempoRestante = 15;
 
         function esIPv4Valida(ip) {
             const regexIPv4 = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
@@ -286,6 +317,7 @@
         }
 
         function detenerYLimpiarAudio() {
+            detenerTemporizador();
             audio.pause();
             audio.removeAttribute("src");
             fuenteAudio.removeAttribute("src");
@@ -296,11 +328,39 @@
             return `http://${ip}:8181/radio?t=${Date.now()}`;
         }
 
+        function iniciarTemporizador() {
+            detenerTemporizador();
+            tiempoRestante = 15;
+            temporizador.textContent = `${tiempoRestante} Segundos...`;
+
+            timerConexion = setInterval(function () {
+                tiempoRestante--;
+
+                if (tiempoRestante > 0) {
+                    temporizador.textContent = `${tiempoRestante} Segundos...`;
+                } else {
+                    detenerTemporizador();
+                    detenerYLimpiarAudio();
+                    boton.textContent = "▶ ESCUCHAR RADIO";
+                    estado.textContent = "Se ha agotado el tiempo de conexión... ⚠ No se puede acceder a la transmisión. Verificá que VLC esté transmitiendo en la IP ingresada.";
+                }
+            }, 1000);
+        }
+
+        function detenerTemporizador() {
+            if (timerConexion) {
+                clearInterval(timerConexion);
+                timerConexion = null;
+            }
+            temporizador.textContent = "";
+        }
+
         boton.addEventListener("click", async function () {
             const ipIngresada = ipInput.value.trim();
 
             if (!esIPv4Valida(ipIngresada)) {
                 ipInput.classList.add("error");
+                detenerTemporizador();
                 estado.textContent = "⚠ Por favor, ingresá una dirección IPv4 válida (ej. 192.168.1.16).";
                 return;
             }
@@ -319,12 +379,12 @@
                 try {
                     await audio.play();
                     boton.textContent = "⏸ PAUSAR RADIO";
-                    estado.textContent = "🔴 Reproduciendo transmisión en vivo";
                 } catch (error) {
-                    estado.textContent = "No fue posible iniciar la reproducción. Verificá la IP o la conexión con VLC.";
+                    detenerTemporizador();
+                    estado.textContent = "Se ha agotado el tiempo de conexión... No fue posible iniciar la reproducción. Verificá la IP o la conexión con VLC.";
                 }
             } else {
-                audio.pause();
+                detenerYLimpiarAudio();
                 boton.textContent = "▶ ESCUCHAR RADIO";
                 estado.textContent = "Transmisión pausada.";
             }
@@ -335,22 +395,22 @@
         });
 
         audio.addEventListener("playing", function () {
+            detenerTemporizador();
             estado.textContent = "🔴 Reproduciendo transmisión en vivo";
         });
 
         audio.addEventListener("waiting", function () {
             estado.textContent = "⏳ Esperando datos de la transmisión...";
+            iniciarTemporizador();
         });
 
         audio.addEventListener("error", function () {
-            estado.textContent = "⚠ No se puede acceder a la transmisión. Verificá que VLC esté transmitiendo en la IP ingresada.";
+            detenerTemporizador();
+            estado.textContent = "Se ha agotado el tiempo de conexión... ⚠ No se puede acceder a la transmisión. Verificá que VLC esté transmitiendo en la IP ingresada.";
         });
 
         window.addEventListener("pagehide", function () {
-            audio.pause();
-            audio.removeAttribute("src");
-            fuenteAudio.removeAttribute("src");
-            audio.load();
+            detenerYLimpiarAudio();
         });
     </script>
 </body>
